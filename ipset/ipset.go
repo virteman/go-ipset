@@ -58,6 +58,7 @@ type IPSet struct {
 func initCheck() error {
 	if ipsetPath == "" {
 		path, err := exec.LookPath("ipset")
+
 		if err != nil {
 			return errIpsetNotFound
 		}
@@ -120,7 +121,12 @@ func New(name string, hashtype string, p *Params) (*IPSet, error) {
 	s := IPSet{name, hashtype, p.HashFamily, p.HashSize, p.MaxElem, p.Timeout}
 	err := s.createHashSet(name)
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "already exists") {
+			// This is fine; New is a "get or create" constructor
+			return &s, nil
+		} else {
+			return nil, err
+		}
 	}
 	return &s, nil
 }
