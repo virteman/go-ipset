@@ -43,6 +43,7 @@ type Params struct {
 	HashSize   int
 	MaxElem    int
 	Timeout    int
+	Flush      bool
 }
 
 // IPSet implements an Interface to an set.
@@ -76,7 +77,7 @@ func initCheck() error {
 	return nil
 }
 
-func (s *IPSet) createHashSet(name string) error {
+func (s *IPSet) createHashSet(name string, flush bool) error {
 	/*	out, err := exec.Command("/usr/bin/sudo",
 		ipsetPath, "create", name, s.HashType, "family", s.HashFamily, "hashsize", strconv.Itoa(s.HashSize),
 		"maxelem", strconv.Itoa(s.MaxElem), "timeout", strconv.Itoa(s.Timeout), "-exist").CombinedOutput()*/
@@ -85,9 +86,11 @@ func (s *IPSet) createHashSet(name string) error {
 	if err != nil {
 		return fmt.Errorf("error creating ipset %s with type %s: %v (%s)", name, s.HashType, err, out)
 	}
-	out, err = exec.Command(ipsetPath, "flush", name).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error flushing ipset %s: %v (%s)", name, err, out)
+	if flush {
+		out, err = exec.Command(ipsetPath, "flush", name).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error flushing ipset %s: %v (%s)", name, err, out)
+		}
 	}
 	return nil
 }
@@ -119,7 +122,7 @@ func New(name string, hashtype string, p *Params) (*IPSet, error) {
 	}
 
 	s := IPSet{name, hashtype, p.HashFamily, p.HashSize, p.MaxElem, p.Timeout}
-	err := s.createHashSet(name)
+	err := s.createHashSet(name, p.Flush)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
 			// This is fine; New is a "get or create" constructor
@@ -135,7 +138,7 @@ func New(name string, hashtype string, p *Params) (*IPSet, error) {
 // The ipset is updated on the fly by hot swapping it with a temporary set.
 func (s *IPSet) Refresh(entries []string) error {
 	tempName := s.Name + "-temp"
-	err := s.createHashSet(tempName)
+	err := s.createHashSet(tempName, true)
 	if err != nil {
 		return err
 	}
